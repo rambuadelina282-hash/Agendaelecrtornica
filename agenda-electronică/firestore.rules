@@ -1,0 +1,93 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ===============================================================
+    // Helper Functions
+    // ===============================================================
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+
+    // Check if the current user is a teacher
+    function isTeacher() {
+      return isAuthenticated() &&
+        exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'teacher';
+    }
+
+    // ===============================================================
+    // Domain Validators
+    // ===============================================================
+    function isValidUser(data) {
+      return data.keys().hasOnly(['uid', 'email', 'name', 'role']) &&
+             data.uid is string && data.uid.size() > 0 &&
+             data.email is string && data.email.matches("^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}$") &&
+             data.name is string && data.name.size() > 0 && data.name.size() < 100 &&
+             data.role in ['teacher', 'student'];
+    }
+
+    function isValidGrade(data) {
+      let validSubjects = [
+        'limba română', 'limba rusă', 'l. engleză', 'matematică',
+        'fizică', 'chimia', 'biologia', 'informatică', 'geografia', 'istoria'
+      ];
+      
+      let hasRequired = data.keys().hasAll(['studentId', 'teacherId', 'subject', 'value', 'createdAt']);
+      let hasOnlyAllowed = data.keys().hasOnly(['studentId', 'teacherId', 'subject', 'value', 'note', 'createdAt']);
+      
+      let validNote = !('note' in data) || (data.note is string && data.note.size() <= 1000);
+      
+      return hasRequired && hasOnlyAllowed &&
+             data.studentId is string && data.studentId.size() > 0 &&
+             data.teacherId is string && data.teacherId == request.auth.uid &&
+             data.subject in validSubjects &&
+             data.value is number && data.value >= 1 && data.value <= 10 &&
+             validNote &&
+             data.createdAt is timestamp;
+    }
+
+    // ===============================================================
+    // Rules
+    // ===============================================================
+
+    match /users/{userId} {
+      // Teachers can read all users (to find students), students can read their own profile
+      allow read: if isAuthenticated() && (isOwner(userId) || isTeacher());
+      
+      // Users can create their own profile upon signup
+      allow create: if isOwner(userId) && isValidUser(request.resource.data) && request.resource.data.uid == userId;
+      
+      // Users can update their own profile, but cannot change their role
+      allow update: if isOwner(userId) && isValidUser(request.resource.data) && 
+                    request.resource.data.uid == resource.data.uid &&
+                    request.resource.data.role == resource.data.role;
+    }
+
+    match /grades/{gradeId} {
+      // Students can read their own grades, teachers can read all grades
+      allow read: if isAuthenticated() && (
+        isTeacher() || 
+        (resource.data.studentId == request.auth.uid)
+      );
+      
+      // Only teachers can create grades
+      allow create: if isTeacher() && isValidGrade(request.resource.data);
+      
+      // Only the teacher who created the grade can update it
+      allow update: if isTeacher() && resource.data.teacherId == request.auth.uid &&
+                    isValidGrade(request.resource.data) &&
+                    request.resource.data.studentId == resource.data.studentId &&
+                    request.resource.data.teacherId == resource.data.teacherId &&
+                    request.resource.data.createdAt == resource.data.createdAt;
+                    
+      // Only the teacher who created the grade can delete it
+      allow delete: if isTeacher() && resource.data.teacherId == request.auth.uid;
+    }
+  }
+}

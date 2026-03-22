@@ -1,0 +1,89 @@
+{
+  "entities": {
+    "User": {
+      "title": "User",
+      "description": "Represents a user in the system (teacher or student).",
+      "type": "object",
+      "properties": {
+        "uid": {
+          "type": "string",
+          "description": "The unique identifier of the user."
+        },
+        "email": {
+          "type": "string",
+          "format": "email",
+          "description": "The email address of the user."
+        },
+        "name": {
+          "type": "string",
+          "description": "The full name of the user."
+        },
+        "role": {
+          "type": "string",
+          "enum": ["teacher", "student"],
+          "description": "The role of the user."
+        }
+      },
+      "required": ["uid", "email", "name", "role"]
+    },
+    "Grade": {
+      "title": "Grade",
+      "description": "Represents a grade given to a student by a teacher.",
+      "type": "object",
+      "properties": {
+        "studentId": {
+          "type": "string",
+          "description": "The UID of the student receiving the grade."
+        },
+        "teacherId": {
+          "type": "string",
+          "description": "The UID of the teacher giving the grade."
+        },
+        "subject": {
+          "type": "string",
+          "enum": [
+            "limba română",
+            "limba rusă",
+            "l. engleză",
+            "matematică",
+            "fizică",
+            "chimia",
+            "biologia",
+            "informatică",
+            "geografia",
+            "istoria"
+          ],
+          "description": "The subject for which the grade is given."
+        },
+        "value": {
+          "type": "number",
+          "description": "The value of the grade (1-10)."
+        },
+        "note": {
+          "type": "string",
+          "description": "An optional informative note from the teacher."
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "The timestamp when the grade was created."
+        }
+      },
+      "required": ["studentId", "teacherId", "subject", "value", "createdAt"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": {
+        "$ref": "#/entities/User"
+      },
+      "description": "Stores user profiles."
+    },
+    "/grades/{gradeId}": {
+      "schema": {
+        "$ref": "#/entities/Grade"
+      },
+      "description": "Stores grades given to students."
+    }
+  }
+}
